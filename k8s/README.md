@@ -17,23 +17,52 @@ reading shared config from a ConfigMap.
 
 ## Before you apply these
 
-1. Build and push the images to a registry these manifests can pull from:
-   ```bash
-   docker build -f api/Dockerfile -t ghcr.io/<you>/treasury-api:latest .
-   docker build -f dashboard/Dockerfile -t ghcr.io/<you>/treasury-dashboard:latest .
-   docker push ghcr.io/<you>/treasury-api:latest
-   docker push ghcr.io/<you>/treasury-dashboard:latest
-   ```
-2. Replace `your-registry/treasury-api:latest` and
-   `your-registry/treasury-dashboard:latest` in the two Deployment files
-   with your actual pushed image paths.
-3. Apply:
-   ```bash
-   kubectl apply -f k8s/namespace.yaml
-   kubectl apply -f k8s/
-   kubectl get pods -n treasury-engine
-   kubectl get svc treasury-dashboard -n treasury-engine   # find the external IP
-   ```
+**Easiest path — Docker Desktop's built-in Kubernetes** (recommended if
+you're already on Docker Desktop, which you are if you followed this
+project's Docker Compose setup): Settings → **Kubernetes** → check
+**Enable Kubernetes** → Apply & Restart. This gives you a real local
+single-node cluster that shares Docker Desktop's image store directly —
+your `treasury-api:latest`, `treasury-dashboard:latest`, and
+`treasury-mlflow:latest` images (already built if you've run
+`docker compose up --build`) are usable immediately, no registry push
+needed. The manifests below already reference these local tags.
+
+```bash
+kubectl config get-contexts        # confirm "docker-desktop" is available
+kubectl config use-context docker-desktop
+
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/
+kubectl get pods -n treasury-engine -w      # watch until both show Running
+kubectl get svc -n treasury-engine
+```
+
+The dashboard's `Service` is `type: LoadBalancer` — on Docker Desktop's
+local cluster this resolves to `localhost`, so once the pod is `Running`:
+
+```
+http://localhost:80          # or whatever port `kubectl get svc` shows
+```
+
+If a port conflict or `<pending>` external IP shows up, port-forward
+directly instead, which always works regardless of Service type:
+
+```bash
+kubectl port-forward -n treasury-engine svc/treasury-dashboard 8501:80
+kubectl port-forward -n treasury-engine svc/treasury-api 8000:80
+```
+
+**If instead you're deploying to a real remote cluster** (EKS/GKE/AKS),
+you do need a registry:
+```bash
+docker build -f api/Dockerfile -t ghcr.io/<you>/treasury-api:latest .
+docker build -f dashboard/Dockerfile -t ghcr.io/<you>/treasury-dashboard:latest .
+docker push ghcr.io/<you>/treasury-api:latest
+docker push ghcr.io/<you>/treasury-dashboard:latest
+```
+and change the `image:` field in both Deployment files from
+`treasury-api:latest` / `treasury-dashboard:latest` to your pushed,
+fully-qualified paths.
 
 ## Why the API is pinned to 1 replica (`minReplicas`/`maxReplicas` = 1)
 
