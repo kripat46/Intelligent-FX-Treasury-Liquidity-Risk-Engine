@@ -1,7 +1,7 @@
 # Wise-Style Liquidity & Fraud Intelligence Engine
 
 A portfolio-grade simulation of the backend intelligence layer behind a
-multi-currency remittance platform (e.g. Wise). It combines a **real-time
+multi-currency remittance platform. It combines a **real-time
 fraud/AML risk engine** (MLE track) with a **treasury liquidity optimization
 engine** (DS/quant track), surfaced through a live **Streamlit control tower**.
 
@@ -55,7 +55,7 @@ systems:
 | 12 | `k8s/*.yaml` | Orchestration | Deployment/Service/HPA per service, shared ConfigMap; see `k8s/README.md` for scaling caveats |
 | 13 | `.github/workflows/ci.yml` | CI/CD | lint → test → build, on every push/PR |
 
-## Key modeling decisions (the "why", not just the "what")
+## Key modeling decisions
 
 **Fraud as a 3-tier action policy, not a 3-class classifier.**
 Real compliance systems don't train a model to predict "Blocked" directly —
@@ -94,7 +94,7 @@ reorder point*, independent of the fraud engine. This keeps the treasury
 incentive mechanism auditable on its own terms (regulators and finance teams
 need to be able to explain a fee change purely in terms of liquidity risk).
 
-## The dashboard is genuinely live, not a CSV replay
+## The dashboard is live.
 
 An earlier version of this dashboard read a pre-scored CSV and animated
 through it — that's a chart, not a system. It's been replaced with a real
@@ -214,46 +214,3 @@ explanation of why the API's HorizontalPodAutoscaler is deliberately
 pinned to 1 replica until the streaming feature store is backed by shared
 state.
 
-## What's verified vs. not
-
-Being direct about this rather than letting a reader (or an interviewer)
-find out the hard way:
-
-**Actually run and verified in this environment:**
-- The full pytest suite (22/22 passing) — feature engineering, threshold
-  policy, liquidity optimizer, streaming engine, and the FastAPI service
-  via `TestClient` (real HTTP-shaped requests, not mocked).
-- The FastAPI app, end-to-end, including a near-threshold transaction
-  correctly scored and flagged, and a validation error correctly
-  returning 422.
-- MLflow tracking — a real run was logged and independently queried back
-  via `MlflowClient` (params, metrics, and the model artifact all
-  confirmed present, not just "no exception was thrown").
-- The Streamlit dashboard, via Streamlit's official `AppTest` harness —
-  cold-start bootstrap, manual tick advances, tab switches, and session
-  reset all execute with zero exceptions.
-- `ruff check` passes clean with a deliberately scoped rule set (see
-  `pyproject.toml`).
-
-**Written and validated for correctness, but not executed, in this
-environment** (no Docker daemon or Kubernetes cluster was reachable from
-the sandbox this was built in):
-- `api/Dockerfile`, `dashboard/Dockerfile`, `mlflow/Dockerfile` — not
-  built. Review them, and run an actual `docker build` as your first real
-  check.
-- `docker-compose.yml` — YAML-validated and logically cross-checked
-  against the Dockerfiles (paths, ports, healthcheck-gated startup
-  order), but `docker compose up` was never run.
-- `k8s/*.yaml` — all six manifests parse as valid Kubernetes YAML with
-  consistent naming across files, but were never applied to a live
-  cluster.
-- `.github/workflows/ci.yml` — YAML-validated, and the lint/test steps it
-  runs were verified locally (that's exactly what would run in CI), but
-  the workflow itself has not executed on GitHub Actions.
-
-If you're using this project for interview prep: be ready to say exactly
-this when asked "did you actually deploy this to Kubernetes?" — the
-honest answer is "the manifests are written and validated, I haven't run
-them against a live cluster," and that's a perfectly credible thing to
-say. Claiming more than that is the fastest way to lose credibility with
-someone who asks one good follow-up question.
