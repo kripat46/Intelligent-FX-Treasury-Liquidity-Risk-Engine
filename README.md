@@ -40,7 +40,7 @@ systems:
 ```
 
 ## Components
-
+ 
 | # | File | Concern | Core technique |
 |---|------|---------|-----------------|
 | 1 | `src/data_generator.py` | Synthetic, skewed, fraud-labeled transaction stream (offline analysis scale) | Log-normal amount modeling, injected structuring/velocity/spike patterns |
@@ -56,9 +56,9 @@ systems:
 | 11 | `api/Dockerfile`, `dashboard/Dockerfile`, `mlflow/Dockerfile`, `docker-compose.yml` | Containerization | Lean, service-specific images; compose for local multi-container runs |
 | 12 | `k8s/*.yaml` | Orchestration | Deployment/Service/HPA per service, shared ConfigMap; see `k8s/README.md` for scaling caveats |
 | 13 | `.github/workflows/ci.yml` | CI/CD | lint → test → build, on every push/PR |
-
+ 
 ## Key modeling decisions
-
+ 
 **Fraud as a 3-tier action policy, not a 3-class classifier.**
 Real compliance systems don't train a model to predict "Blocked" directly —
 label scarcity for "should have been blocked" is worse than for "is fraud",
@@ -68,7 +68,7 @@ probability model**, then apply two probability thresholds (`t_flag`,
 `t_block`) tuned off the precision-recall curve. This is both more
 statistically defensible and mirrors how real risk engines expose a single
 calibrated score to a downstream rules/policy layer.
-
+ 
 **Threshold selection minimizes false negatives, not accuracy.**
 In fraud, a false negative (missed fraud) costs orders of magnitude more
 than a false positive (friction on a legitimate user). We select `t_flag` by
@@ -76,7 +76,7 @@ walking the PR curve for the **recall level a compliance team would set as a
 SLA** (e.g. recall ≥ 0.90) and taking the threshold that maximizes precision
 subject to that recall floor — not the threshold that maximizes F1 or
 accuracy, which would systematically under-flag rare fraud.
-
+ 
 **Liquidity as a newsvendor / (s, S) inventory problem.**
 A currency float pool is functionally an inventory of a perishable resource
 (uninvested cash has a real cost of capital) facing stochastic daily demand
@@ -89,19 +89,18 @@ form: order up to the quantile of demand given by the **critical ratio**
 minimization directly (so it's still legitimate to call this an
 "optimization model" rather than a lookup formula), and confirm the two
 agree.
-
+ 
 **Dynamic pricing is scarcity-indexed, not fraud-indexed.**
 The fee multiplier is a logistic function of *how close the pool is to its
 reorder point*, independent of the fraud engine. This keeps the treasury
 incentive mechanism auditable on its own terms (regulators and finance teams
 need to be able to explain a fee change purely in terms of liquidity risk).
-
-## The dashboard is live.
-
+ 
+## The dashboard is genuinely live.
+ 
 An earlier version of this dashboard read a pre-scored CSV and animated
-through it — that's a chart, not a system. It's been replaced with a real
-(if simulated) streaming pipeline:
-
+through it. It's been replaced with a real (if simulated) streaming pipeline:
+ 
 * **`src/streaming_engine.py`** — `StreamingFeatureStore` computes every
   feature (rolling velocity, personalized z-score, device fan-out) from
   bounded in-memory rolling state **as each transaction arrives**, one at a
@@ -120,46 +119,44 @@ through it — that's a chart, not a system. It's been replaced with a real
   `st.cache_resource`. This means the app is fully self-contained: deploy
   it to a fresh container with nothing pre-committed and it builds its own
   world on first load.
-
 ## Quickstart (local)
-
+ 
 ```bash
 pip install -r requirements.txt
 streamlit run dashboard/app.py
 # first load takes ~5-10s to bootstrap (generate data, train model, solve pools)
 # after that, use the sidebar toggle to start the live simulation
 ```
-
+ 
 For the larger, full-scale offline analysis (the numbers quoted in this
 README) rather than the fast demo-scale bootstrap the dashboard uses:
-
+ 
 ```bash
 python src/data_generator.py            # full-scale synthetic set (~140k rows)
 python src/fraud_model.py               # trains + persists data/fraud_engine.joblib
 python src/liquidity_optimizer.py       # writes data/liquidity_state.json
 ```
-
+ 
 ## Deploying to Streamlit Community Cloud
-
+ 
 1. Push this repository to GitHub (the `data/` directory is gitignored —
    that's intentional; the app builds it on first load).
 2. Go to [share.streamlit.io](https://share.streamlit.io), connect the repo,
    and set the entry point to `dashboard/app.py`.
 3. Deploy. First load will take ~10-15s while it bootstraps; subsequent
    loads reuse the cached model/data for the life of the container.
-
 No secrets, no external services, no database — the whole system runs
 inside the Streamlit container.
-
+ 
 ---
-
+ 
 ## MLOps stack
-
+ 
 The dashboard is one *consumer* of the model; a real platform needs the
 model servable independently of whether anyone has a browser open, needs
 its training runs tracked and comparable, and needs a repeatable path to
 containerized/orchestrated deployment. This project has all four pieces:
-
+ 
 | Concern | What's here |
 |---|---|
 | **Serving** | `api/main.py` — FastAPI app exposing `/score`, `/score/batch`, `/liquidity/state`, `/liquidity/tick`, `/health`, `/model/metrics`. Same `FraudDetectionEngine` and `LivePoolBook` the dashboard uses — one shared artifact layer, two independent consumers. |
@@ -168,49 +165,49 @@ containerized/orchestrated deployment. This project has all four pieces:
 | **Orchestration** | `docker-compose.yml` for local multi-container runs; `k8s/` manifests (Deployment/Service/HPA per service + shared ConfigMap) for cluster deployment — see `k8s/README.md` for a documented scaling caveat before you raise replica counts. |
 | **CI/CD** | `.github/workflows/ci.yml` — lint (ruff) → test (pytest, 22 tests) → build both Docker images, on every push/PR. |
 | **Testing** | `tests/` — 22 pytest tests covering feature-leakage safety, threshold-policy monotonicity, newsvendor closed-form vs. numerical agreement, incremental streaming-feature correctness, live pool depletion/replenishment, and full API integration tests via `TestClient`. |
-
+ 
 ### Running the API
-
+ 
 ```bash
 pip install -r requirements-api.txt
 uvicorn api.main:app --reload --port 8000
 # interactive docs at http://localhost:8000/docs
 ```
-
+ 
 ```bash
 curl -X POST http://localhost:8000/score -H "Content-Type: application/json" -d '{
   "Transaction_ID": "TXN000001", "User_ID": 42, "Source_Currency": "USD",
   "Target_Currency": "INR", "Amount_USD": 9700.0, "Device_IP": "24.1.1.1"
 }'
 ```
-
+ 
 ### Running everything with Docker Compose
-
+ 
 ```bash
 docker compose up --build
 # API:        http://localhost:8000/docs
 # Dashboard:  http://localhost:8501
 # MLflow UI:  http://localhost:5000
 ```
-
+ 
 ### Running the test suite / lint locally (what CI runs)
-
+ 
 ```bash
 pip install -r requirements-dev.txt -r requirements-api.txt
 ruff check src/ api/ dashboard/ tests/
 pytest tests/ -v
 ```
-
+ 
 ### Tracking a training run with MLflow
-
+ 
 ```bash
 pip install -r requirements-dev.txt
 python src/train_with_mlflow.py
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # inspect runs at http://localhost:5000
 ```
-
+ 
 ### Deploying to Kubernetes
-
+ 
 See `k8s/README.md` — includes the image-push steps and, importantly, an
 explanation of why the API's HorizontalPodAutoscaler is deliberately
 pinned to 1 replica until the streaming feature store is backed by shared
