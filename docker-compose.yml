@@ -1,10 +1,27 @@
 # docker-compose.yml
+# Local multi-container orchestration: the API and dashboard as separate
+# services (mirroring how they'd be deployed independently in production),
+# sharing a volume for bootstrapped data/model artifacts, plus an MLflow
+# tracking server for experiment logging.
+#
+# Run:  docker compose up --build
+#   API:        http://localhost:8000/docs
+#   Dashboard:  http://localhost:8501
+#   MLflow UI:  http://localhost:5000
+#
+# NOTE: not built/run from this sandboxed environment (no Docker Hub
+# network access here) — validated for YAML correctness and logical
+# consistency with the Dockerfiles/app code, not for an actual `docker
+# compose up`. Please run a smoke test after cloning locally before
+# relying on this for a demo.
+
 services:
   api:
     build:
       context: .
       dockerfile: api/Dockerfile
     image: treasury-api:latest
+    init: true   # see note on the dashboard service — same zombie-reaping fix
     ports:
       - "8000:8000"
     environment:
@@ -13,16 +30,11 @@ services:
     volumes:
       - treasury-data:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
-      interval: 15s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
       timeout: 5s
-      retries: 8
-      start_period: 90s
-    # NOTE: no depends_on: mlflow here anymore. api/main.py never calls
-    # MLflow at runtime (only the separate offline script
-    # src/train_with_mlflow.py does), so gating api's startup on mlflow's
-    # health was pure downside: a flaky mlflow container could (and just
-    # did) take down the whole stack for no functional reason.
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   dashboard:
@@ -30,6 +42,13 @@ services:
       context: .
       dockerfile: dashboard/Dockerfile
     image: treasury-dashboard:latest
+    # init:true runs a lightweight init process (tini) as PID 1 inside the
+    # container, which correctly forwards signals and reaps zombie child
+    # processes. Streamlit's live-mode rerun loop spawns subprocesses that
+    # weren't being reaped without this, which surfaced as `docker compose
+    # down` hanging with "container ... is zombie and can not be killed."
+    # See NOTES.md for the exact failure this fixes.
+    init: true
     ports:
       - "8501:8501"
     environment:
@@ -46,6 +65,7 @@ services:
       context: .
       dockerfile: mlflow/Dockerfile
     image: treasury-mlflow:latest
+    init: true   # see note on the dashboard service — same zombie-reaping fix
     ports:
       - "5000:5000"
     volumes:
@@ -54,23 +74,8 @@ services:
       mlflow server
       --host 0.0.0.0
       --port 5000
-      --workers 1
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
-    # --workers 1 is the actual fix: MLflow's default multi-worker startup
-    # has every worker racing to initialize the same SQLite schema
-    # concurrently, which is exactly what caused the repeated
-    # "Child process died" crashes in your log. A single worker removes
-    # the race. This is a real limitation of SQLite as a backend store —
-    # fine for a portfolio project's low write-concurrency, not something
-    # you'd do with a real multi-user MLflow deployment (that needs
-    # Postgres/MySQL as the backend store instead).
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=5)"]
-      interval: 15s
-      timeout: 5s
-      retries: 8
-      start_period: 90s
     restart: unless-stopped
 
 volumes:
