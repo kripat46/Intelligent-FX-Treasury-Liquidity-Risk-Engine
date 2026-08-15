@@ -1,5 +1,7 @@
 # Wise-Style Liquidity & Fraud Intelligence Engine
 
+![CI](https://github.com/kripat46/Intelligent-FX-Treasury-Liquidity-Risk-Engine/actions/workflows/ci.yml/badge.svg)
+
 A portfolio-grade simulation of the backend intelligence layer behind a
 multi-currency remittance platform. It combines a **real-time
 fraud/AML risk engine** (MLE track) with a **treasury liquidity optimization
