@@ -29,9 +29,14 @@ spec:
     spec:
       containers:
         - name: treasury-api
-          # Replace with your actual registry path after `docker build`
-          # + `docker push`, e.g. ghcr.io/<you>/treasury-api:latest
-          image: your-registry/treasury-api:latest
+          # Local image, built via `docker compose build` — matches the
+          # tag docker-compose.yml already produces. No registry needed
+          # when applying this to Docker Desktop's built-in Kubernetes,
+          # since it shares Docker Desktop's local image store directly.
+          # If you deploy to a REAL remote cluster (EKS/GKE/AKS) instead,
+          # you'll need to push to a registry and change this back to a
+          # fully-qualified path, e.g. ghcr.io/<you>/treasury-api:latest.
+          image: treasury-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
