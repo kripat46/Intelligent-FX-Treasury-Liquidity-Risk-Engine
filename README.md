@@ -22,18 +22,18 @@ systems:
    look production-grade rather than tutorial-grade.
 
 ```
-┌─────────────────────┐      ┌──────────────────────────┐      ┌───────────────────────┐
-│ 1. Synthetic Stream  │ ---> │ 2. Fraud Risk Engine      │ ---> │ 4. Control Tower       │
-│    Generator         │      │   (XGBoost + feature      │      │   (Streamlit)          │
-│  transactions.csv    │      │    pipeline, 3-tier        │      │  - live tx feed        │
-└──────────┬───────────┘      │    action policy)         │      │  - confidence plots    │
-           │                  └──────────────────────────┘      │  - float gauges        │
-           │                                                     │  - rebalancing alerts  │
-           ▼                                                     └───────────▲────────────┘
-┌──────────────────────────┐                                                 │
-│ 3. Liquidity Optimizer    │ ------------------------------------------------┘
-│   (s,S) newsvendor model  │
-│   + dynamic fee pricing   │
+┌─────────────────────┐      ┌─────────────────────────┐      ┌───────────────────────┐
+│ 1. Synthetic Stream │ ---> │ 2. Fraud Risk Engine    │ ---> │ 4. Control Tower      │
+│    Generator        │      │   (XGBoost + feature    │      │   (Streamlit)         │
+│  transactions.csv   │      │    pipeline, 3-tier     │      │  - live tx feed       │
+└──────────┬──────────┘      │    action policy)       │      │  - confidence plots   │
+           │                 └─────────────────────────┘      │  - float gauges       │
+           │                                                  │  - rebalancing alerts │
+           ▼                                                  └───────────▲───────────┘
+┌──────────────────────────┐                                              │
+│ 3. Liquidity Optimizer   │ -------------------------------------------- ┘
+│   (s,S) newsvendor model │
+│   + dynamic fee pricing  │
 └──────────────────────────┘
 ```
 
