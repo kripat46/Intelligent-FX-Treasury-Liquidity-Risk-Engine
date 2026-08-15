@@ -212,4 +212,81 @@ See `k8s/README.md` — includes the image-push steps and, importantly, an
 explanation of why the API's HorizontalPodAutoscaler is deliberately
 pinned to 1 replica until the streaming feature store is backed by shared
 state.
+## What's verified vs. not
+ 
+Being direct about this rather than letting a reader (or an interviewer)
+find out the hard way:
+ 
+**Actually run and verified (across development and local deployment):**
+- The full pytest suite (22/22 passing) — feature engineering, threshold
+  policy, liquidity optimizer, streaming engine, and the FastAPI service
+  via `TestClient` (real HTTP-shaped requests, not mocked).
+- The FastAPI app, end-to-end, including a near-threshold transaction
+  correctly scored and flagged, and a validation error correctly
+  returning 422.
+- MLflow tracking — a real run was logged and independently queried back
+  via `MlflowClient` (params, metrics, and the model artifact all
+  confirmed present, not just "no exception was thrown").
+- The Streamlit dashboard, via Streamlit's official `AppTest` harness —
+  cold-start bootstrap, manual tick advances, tab switches, and session
+  reset all execute with zero exceptions.
+- `ruff check` passes clean with a deliberately scoped rule set (see
+  `pyproject.toml`).
+- **`docker build` + `docker compose up`, run locally on a real machine
+  (Docker Desktop / Windows)**: all three services (`api`, `dashboard`,
+  `mlflow`) build and reach a healthy state, with the API's `/health`
+  endpoint and MLflow's UI both confirmed reachable. One real issue was
+  found and fixed this way that the sandbox's YAML-only validation could
+  never have caught: MLflow's default multi-worker startup raced to
+  initialize the same SQLite schema concurrently, crash-looping a few
+  times before stabilizing — fixed by pinning `--workers 1`. A second
+  issue — an unnecessary `depends_on: mlflow` on the `api` service — was
+  also removed after it caused a flaky MLflow startup to cascade into
+  blocking the entire stack, even though `api` doesn't call MLflow at
+  runtime. Both are exactly the kind of integration bug that only shows
+  up when you actually run the thing, not when you review the YAML.
+**Written and validated for correctness, but not yet executed against
+live infrastructure:**
+- `.github/workflows/ci.yml` — the lint/test steps it runs were verified
+  locally (that's exactly what runs in CI), and the workflow YAML is
+  valid, but confirm it's gone green on the repo's **Actions** tab before
+  treating it as proven.
+**Actually deployed to a live Kubernetes cluster** (Docker Desktop's
+built-in `kind`-based cluster, single node): `kubectl apply -f k8s/`
+against a real cluster, `treasury-api` and `treasury-dashboard` both
+reached `1/1 Running`, and the dashboard was reached and confirmed
+working through `kubectl port-forward`. This surfaced three real issues
+that YAML validation alone could not have caught, each worth naming
+rather than glossing over:
+ 
+1. **Stale placeholder image references.** The Deployment manifests
+   initially pointed at `your-registry/treasury-api:latest` — a
+   placeholder left over from before local image names were substituted
+   in. `kubectl describe pod` surfaced the actual cause immediately
+   (`pull access denied... repository does not exist`), and the fix was a
+   one-line correction to the `image:` field in each Deployment. The
+   general lesson: `kubectl describe pod` → **Events** section is the
+   fastest path to ground truth on any pod stuck in `ImagePullBackOff` —
+   guessing at causes without it wastes time.
+2. **Docker Desktop's `kind`-based Kubernetes doesn't share an image
+   store with `docker build`/`docker compose build` by default,** and
+   also doesn't share state with a separately-installed standalone `kind`
+   CLI (`kind get clusters` returns nothing even though Docker Desktop's
+   own dashboard shows an active node) — the two are different
+   implementations that happen to share a name. The working fix: `docker
+   save` each image to a tarball, `docker cp` it into the cluster's node
+   container (`desktop-control-plane`, itself just a Docker container),
+   then `docker exec ... ctr -n k8s.io images import` to load it directly
+   into the node's containerd image store, bypassing both `docker`'s and
+   `kind`'s normal image-sharing paths entirely.
+3. **A CLI syntax gotcha**: `ctr -n=k8s.io` (with `=`) fails silently
+   with a cryptic `No help topic for '.io'` rather than a clear "invalid
+   flag" error; `ctr -n k8s.io` (space-separated) is the correct form for
+   this version of `ctr`.
+None of these three issues are bugs in this project's own code — they're
+all platform/tooling friction specific to Docker Desktop's Kubernetes
+integration on Windows. But finding and fixing them is exactly the kind
+of debugging trail worth being able to describe in an interview, and a
+considerably stronger answer than either "I didn't try" or a suspiciously
+clean "it just worked."
 
