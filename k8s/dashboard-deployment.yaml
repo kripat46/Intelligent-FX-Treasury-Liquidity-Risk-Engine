@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
         - name: treasury-dashboard
-          image: your-registry/treasury-dashboard:latest
+          # Local image — see the matching comment in api-deployment.yaml.
+          image: treasury-dashboard:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8501
