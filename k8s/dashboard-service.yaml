@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: treasury-dashboard
+  namespace: treasury-engine
+spec:
+  selector:
+    app: treasury-dashboard
+  ports:
+    - port: 80
+      targetPort: 8501
+  # LoadBalancer for cloud clusters (EKS/GKE/AKS provision an external IP);
+  # swap to NodePort for a local kind/minikube cluster.
+  type: LoadBalancer

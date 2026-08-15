@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: treasury-config
+  namespace: treasury-engine
+data:
+  DATA_DIR: "/app/data"
+  # Point at the in-cluster MLflow tracking Service if you deploy one
+  # (not included here — see mlflow/Dockerfile for a standalone image to
+  # adapt into its own Deployment/Service if you want run history to
+  # survive pod restarts).
+  MLFLOW_TRACKING_URI: "http://mlflow.treasury-engine.svc.cluster.local:5000"

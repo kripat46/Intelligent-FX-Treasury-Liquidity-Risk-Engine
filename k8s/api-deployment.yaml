@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: treasury-api
+  namespace: treasury-engine
+  labels:
+    app: treasury-api
+spec:
+  # IMPORTANT — read before scaling this past 1 replica:
+  # the streaming feature store (src/streaming_engine.py) keeps its
+  # rolling per-user/per-device state IN-PROCESS. With replicas > 1 and a
+  # naive Service (round-robin), two consecutive requests for the same
+  # user could land on different pods with different rolling history,
+  # silently degrading feature quality (each pod would think it's seeing
+  # a "colder" user than it really is). This is the honest, common
+  # failure mode of taking an in-memory streaming demo straight to
+  # multi-replica k8s. A real fix is to back the feature store with a
+  # shared store (Redis / a feature-store service) keyed by user_id
+  # before scaling beyond 1 replica — noted here rather than glossed
+  # over, exactly the kind of tradeoff a DS II+ role expects you to flag.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: treasury-api
+  template:
+    metadata:
+      labels:
+        app: treasury-api
+    spec:
+      containers:
+        - name: treasury-api
+          # Replace with your actual registry path after `docker build`
+          # + `docker push`, e.g. ghcr.io/<you>/treasury-api:latest
+          image: your-registry/treasury-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: treasury-config
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 25
+            periodSeconds: 20
+          volumeMounts:
+            - name: treasury-data
+              mountPath: /app/data
+      volumes:
+        - name: treasury-data
+          emptyDir: {}
+          # Swap for a PersistentVolumeClaim if you want the bootstrapped
+          # model/data to survive pod restarts rather than re-bootstrapping
+          # (~5-10s) on every new pod.

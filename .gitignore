@@ -1,0 +1,18 @@
+# Generated pipeline artifacts — the app bootstraps these itself on first
+# run (see src/bootstrap.py), so they're deliberately NOT committed.
+data/*.csv
+data/*.json
+data/*.joblib
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.streamlit/secrets.toml
+.pytest_cache/
+.ruff_cache/
+
+# MLflow local tracking artifacts — each training run creates its own;
+# not meant to be committed, same reasoning as data/.
+mlruns/
+mlflow.db

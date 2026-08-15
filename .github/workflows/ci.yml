@@ -1,0 +1,83 @@
+# .github/workflows/ci.yml
+# Runs on every push/PR: lint -> test -> build (no push, since this repo
+# has no registry credentials configured). Enable the commented-out push
+# step once you've added registry secrets if you want CI to publish
+# images.
+#
+# NOTE: this workflow was written and YAML-validated locally, but not
+# executed on GitHub Actions from this environment (no network access to
+# GitHub Actions runners from this sandbox). Push it and check the
+# Actions tab after cloning — that's the real verification step. See the
+# root README's "What's verified vs. not" section.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r requirements-api.txt
+
+      - name: Lint (ruff)
+        run: ruff check src/ api/ dashboard/ tests/
+
+      - name: Run test suite
+        run: pytest tests/ -v --tb=short
+
+  build-images:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: api/Dockerfile
+          push: false
+          tags: treasury-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build dashboard image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: dashboard/Dockerfile
+          push: false
+          tags: treasury-dashboard:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # To actually publish images, add registry login + push steps, e.g.:
+      #
+      # - name: Log in to GHCR
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+      #
+      # then set push: true and tags: ghcr.io/<owner>/treasury-api:latest above.

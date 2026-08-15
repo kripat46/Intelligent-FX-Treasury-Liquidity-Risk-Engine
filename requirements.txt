@@ -1,0 +1,9 @@
+# Convenience file for local development: installs everything needed to
+# run the data pipeline, the API, the dashboard, and the test suite in one
+# environment. Docker images use the leaner, service-specific
+# requirements-{core,api,dashboard,dev}.txt files instead, so each
+# container only ships what it actually needs.
+-r requirements-core.txt
+-r requirements-api.txt
+-r requirements-dashboard.txt
+-r requirements-dev.txt

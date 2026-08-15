@@ -1,0 +1,78 @@
+# docker-compose.yml
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: treasury-api:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - DATA_DIR=/app/data
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - treasury-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+    # NOTE: no depends_on: mlflow here anymore. api/main.py never calls
+    # MLflow at runtime (only the separate offline script
+    # src/train_with_mlflow.py does), so gating api's startup on mlflow's
+    # health was pure downside: a flaky mlflow container could (and just
+    # did) take down the whole stack for no functional reason.
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    image: treasury-dashboard:latest
+    ports:
+      - "8501:8501"
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - treasury-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: mlflow/Dockerfile
+    image: treasury-mlflow:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --workers 1
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    # --workers 1 is the actual fix: MLflow's default multi-worker startup
+    # has every worker racing to initialize the same SQLite schema
+    # concurrently, which is exactly what caused the repeated
+    # "Child process died" crashes in your log. A single worker removes
+    # the race. This is a real limitation of SQLite as a backend store —
+    # fine for a portfolio project's low write-concurrency, not something
+    # you'd do with a real multi-user MLflow deployment (that needs
+    # Postgres/MySQL as the backend store instead).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+    restart: unless-stopped
+
+volumes:
+  treasury-data:
+  mlflow-data:

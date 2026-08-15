@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Deliberately scoped to a pragmatic baseline: pycodestyle errors (E),
+# pyflakes (F — unused imports/vars, undefined names), and import sorting
+# (I). Ruff's full default rule set also enables stricter opinionated
+# categories (DTZ timezone-awareness, ANN type-annotation coverage, C4
+# comprehension style, etc.) that don't match this codebase's deliberate
+# choices (e.g. naive datetimes throughout, matching pandas Timestamp
+# semantics) — enabling them wholesale would mean fighting the linter
+# instead of it catching real bugs.
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules intentionally do sys.path.insert(...) immediately before
+# a local import, so the import can't be at the top of the file.
+"tests/*.py" = ["E402"]
+"api/main.py" = ["E402"]
+"dashboard/app.py" = ["E402"]

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: treasury-api
+  namespace: treasury-engine
+spec:
+  selector:
+    app: treasury-api
+  ports:
+    - port: 80
+      targetPort: 8000
+  type: ClusterIP

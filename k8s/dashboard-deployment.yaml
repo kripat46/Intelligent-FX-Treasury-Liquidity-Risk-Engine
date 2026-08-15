@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: treasury-dashboard
+  namespace: treasury-engine
+  labels:
+    app: treasury-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: treasury-dashboard
+  template:
+    metadata:
+      labels:
+        app: treasury-dashboard
+    spec:
+      containers:
+        - name: treasury-dashboard
+          image: your-registry/treasury-dashboard:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8501
+          envFrom:
+            - configMapRef:
+                name: treasury-config
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          volumeMounts:
+            - name: treasury-data
+              mountPath: /app/data
+      volumes:
+        - name: treasury-data
+          emptyDir: {}

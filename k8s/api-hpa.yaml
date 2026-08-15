@@ -1,0 +1,25 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: treasury-api-hpa
+  namespace: treasury-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: treasury-api
+  # minReplicas/maxReplicas both pinned to 1 by default — see the long
+  # comment in api-deployment.yaml. Raise maxReplicas only after the
+  # streaming feature store is backed by shared state (Redis or similar);
+  # otherwise autoscaling silently degrades feature correctness rather
+  # than improving throughput. This is left explicit rather than shipping
+  # a "looks production-ready" HPA that would misbehave if actually used.
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
